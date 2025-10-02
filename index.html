@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Measure append-to-canplaythrough time</title>
+</head>
+<style>
+* {
+    box-sizing: border-box;
+}
+table, th, td {
+    border: 1px solid gray;
+    text-align: center;
+}
+tr > td:first-child, tr > th:first-child {
+    min-width: 180px;
+}
+tr > td {
+    min-width: 80px;
+}
+table {
+    margin-bottom: 10px;
+}
+#tblParams tr > th {
+    width: 250px;
+}
+#tblParams tr > td {
+    width: 140px;
+}
+#tblResults td, #tblParams td {
+    text-align: right;
+    font-feature-settings: "lnum";
+}
+#tblResults > tbody > tr > th, #tblParams th {
+    text-align: left;
+}
+td, th {
+    padding: 2px 5px;
+}
+h1 {
+    margin-bottom: 0;
+    font-size: 18px;
+}
+#guide {
+    margin-bottom: 5px;
+}
+summary {
+    font-weight: normal;
+    font-size: 16px;
+    cursor: pointer;
+}
+details > .contents {
+    border-left: 1px solid black;
+    padding-left: 5px;
+}
+</style>
+<body>
+
+<h1>MediaSource Extensions append performance</h1>
+<div id="guide">
+    <details>
+        <summary>Test overview</summary>
+        <div class="contents">
+            <p>Each test repeatedly appends 2.5MiB worth of MP4 AAC audio and/or MP4 h264 video in separate SourceBuffers simultaneously and measures:</p>
+            <ul>
+                <li><i>updateend audio</i>: Time between <tt>appendBuffer()</tt> and the corresponding <tt>'updateend'</tt> event in that SourceBuffer.</li>
+                <li><i>post-update</i>: Time between the last required <tt>updateend</tt> and <tt>'canplaythrough'</tt>.</li>
+                <li><i>canplaythrough</i>: Time between the first <tt>appendBufer()</tt> and the <tt>'canplaythrough'</tt> event.</li>
+            </ul>
+            <p>The media files are downloaded only once before the start of the tests and reused for all iterations.</p>
+            <p>This test is equivalent to <tt>VideoBufferSpeed</tt> in the <a href="https://ytlr-cert.appspot.com/latest/main.html#1759414366041">YouTube MSE Conformance Tests</a>, but more amenable for measurement and debugging.</p>
+            <p>Once all iterations are done, the table of measurements is also printed via <tt>console.log()</tt> in both Markdown and JSON to make it easier to share and store results.</p>
+        </div>
+    </details>
+    <details>
+        <summary>Test options</summary>
+        <div class="contents">
+            <p>You can customize the behavior of this test page with URL query parameters:</p>
+            <ul>
+                <li><tt>?video</tt>: Include a video SourceBuffer. Omit this parameter to not use a video SourceBuffer. At least one of either <tt>?audio</tt> or <tt>?video</tt> must be used.</li>
+                <li><tt>?audio</tt>: Include an audio SourceBuffer. Omit this parameter to not use an audio SourceBuffer.</li>
+                <li><tt>?no_log</tt>: Disables <tt>console.log()</tt> logging.</li>
+                <li><tt>?rest=NUMBER</tt>: Time in milliseconds to wait between test iterations. Defaults to 100ms. A value of 0 makes use of <tt>setTimeout(cb, 0)</tt>. If a negative value is provided iterations are chained together within any calls to <tt>setTimeout()</tt>.</li>
+                <li><tt>?max_iter=NUMBER</tt>: Number of iterations where meausurements will be considered valid. Defaults to 30. You can set a very large number (e.g. 99999999999) for continuous looping (useful when profiling).</li>
+                <li><tt>?priming=NUMBER</tt>: Number of priming iterations. Defaults to 3. These iterations are run before the main iterations but their measurements are discarded.</li>
+                <li><tt>?tag=TEXT</tt>: If present, show <tt>TEXT</tt> above the table. This is useful for tagging different builds of browsers during testing.</li>
+            </ul>
+        </div>
+    </details>
+</div>
+
+<div id="lblTag"></div>
+<table id="tblParams">
+    <tr>
+        <th>Iterations completed</th>
+        <td id="iter-completed"></td>
+    </tr>
+    <tr>
+        <th>Iterations requested</th>
+        <td id="max-iter"></td>
+    </tr>
+    <tr>
+        <th>Priming iterations</th>
+        <td id="priming-iters"></td>
+    </tr>
+    <tr>
+        <th>Rest between iterations</th>
+        <td id="rest"></td>
+    </tr>
+    <tr>
+        <th>Total time elapsed</th>
+        <td id="total-time"></td>
+    </tr>
+</table>
+
+<table id="tblResults">
+    <thead>
+        <tr>
+            <th>Timer</th>
+            <th>Min</th>
+            <th>Avg</th>
+            <th>Max</th>
+            <th><a title="Standard deviation"
+                href="https://en.wikipedia.org/wiki/Standard_deviation"
+                >StdDev</a></th>
+            <th><a title="Coefficient of variation AKA relative standard deviation"
+                href="https://en.wikipedia.org/wiki/Coefficient_of_variation"
+                >CV</a></th>
+            <th>Total</th>
+            <th>&gt; 500 ms</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr id="row-updateend-video">
+            <th>updateend video</th>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+        <tr id="row-updateend-audio">
+            <th>updateend audio</th>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+        <tr id="row-post-update">
+            <th>post-update</th>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+        <tr id="row-canplaythrough">
+            <th>canplaythrough</th>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+
+<!--
+The constant blinking of the video during the test gives me flicker vertigo.
+Seeing the video preroll can still be helpful however, so as a compromise I'm
+setting a dark brown background color, which I find less uncomfortable than
+white-on-black flicker but still noticeable. -->
+<video id="mediaElement" style="width: 320px; height: 180px; background-color: #242502;"></video>
+
+<script src="measure_append.js"></script>
+</body>
+</html>
